@@ -18,7 +18,7 @@ sleep 2
 
 # Install falco + falcosdekick + webui
 helm repo add falcosecurity https://falcosecurity.github.io/charts
-helm install falco falcosecurity/falco --set falcosidekick.enabled=true --set falcosidekick.webui.enabled=true --set falcosidekick.image.tag=latest --set falcosidekick.webui.image.tag=v1-beta --set falcosidekick.webui.retention=200 --set auditLog.enabled=true --set falcosidekick.config.kubeless.namespace=kubeless --set falcosidekick.config.kubeless.function=delete-pod -n falco --create-namespace
+helm install falco falcosecurity/falco -f custom-rules.yaml  --set falcosidekick.enabled=true --set falcosidekick.webui.enabled=true --set falcosidekick.image.tag=latest --set falcosidekick.webui.image.tag=v1-beta --set auditLog.enabled=true --set falcosidekick.config.kubeless.namespace=kubeless --set falcosidekick.config.kubeless.function=delete-pod -n falco --create-namespace
 
 # Set up audit log endpoint (falco)
 export FALCO_SVC_ENDPOINT=$(kubectl get svc -n falco --field-selector metadata.name=falco -o=json | jq -r ".items[] | .spec.clusterIP")
@@ -40,6 +40,7 @@ users: []
 EOF
 multipass transfer webhook-config.yaml k3s-master:/tmp/
 multipass exec k3s-master -- /bin/bash -c "sudo cp /tmp/webhook-config.yaml /var/lib/rancher/audit/"
+multipass exec k3s-master -- /bin/bash -c "sudo sed -i '/^$/d' /etc/systemd/system/k3s.service"
 multipass exec k3s-master -- /bin/bash -c "sudo chmod o+w /etc/systemd/system/k3s.service"
 multipass exec k3s-master -- /bin/bash -c "sudo echo '    --kube-apiserver-arg=audit-log-path=/var/lib/rancher/audit/audit.log \' >> /etc/systemd/system/k3s.service"
 multipass exec k3s-master -- /bin/bash -c "sudo echo '    --kube-apiserver-arg=audit-policy-file=/var/lib/rancher/audit/audit-policy.yaml \' >> /etc/systemd/system/k3s.service"
