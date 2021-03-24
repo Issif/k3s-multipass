@@ -49,7 +49,7 @@ multipass exec k3s-master -- /bin/bash -c "sudo chmod o-w /etc/systemd/system/k3
 multipass exec k3s-master -- /bin/bash -c "sudo systemctl daemon-reload"
 multipass exec k3s-master -- /bin/bash -c "sudo systemctl restart k3s"
 
-# Install kubeless
+# Install kubeless + Function
 export RELEASE=$(curl -s https://api.github.com/repos/kubeless/kubeless/releases/latest | grep tag_name | cut -d '"' -f 4)
 kubectl create ns kubeless
 kubectl create -f https://github.com/kubeless/kubeless/releases/download/$RELEASE/kubeless-$RELEASE.yaml
@@ -93,7 +93,7 @@ metadata:
     function: delete-pod
   name: delete-pod
 spec:
-  checksum: sha256:a68bf570ea30e578e392eab18ca70dbece27bce850a8dbef2586eff55c5c7aa0
+  checksum: sha256:3889d9bab6b6f94b4ed20600836eb7c50abf1e56bd665c5d8482e189d1189462
   deps: |
     kubernetes>=12.0.1
   function-content-type: text
@@ -108,10 +108,11 @@ spec:
 
         if rule and rule == "Terminal shell in container" and output_fields:
             if output_fields['k8s.ns.name'] and output_fields['k8s.pod.name']:
-                pod = output_fields['k8s.pod.name']
                 namespace = output_fields['k8s.ns.name']
-                print (f"Deleting pod \"{pod}\" in namespace \"{namespace}\"")
-                client.CoreV1Api().delete_namespaced_pod(name=pod, namespace=namespace, body=client.V1DeleteOptions())
+                if namespace == "default":
+                    pod = output_fields['k8s.pod.name']
+                    print (f"Deleting pod \"{pod}\" in namespace \"{namespace}\"")
+                    client.CoreV1Api().delete_namespaced_pod(name=pod, namespace=namespace, body=client.V1DeleteOptions(grace_period_seconds=0))
   handler: delete-pod.delete_pod
   runtime: python3.7
   deployment:

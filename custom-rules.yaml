@@ -1,56 +1,36 @@
+falco:
+  rulesFile:
+    - /etc/falco/k8s_audit_rules.yaml
+    - /etc/falco/rules.d/custom-rules.yaml
 customRules:
-  - macro: spawned_process
-    condition: evt.type = execve and evt.dir=<
-  - macro: container
-    condition: (container.id != host)
-  - list: shell_binaries
-    items: [ash, bash, csh, ksh, sh, tcsh, zsh, dash]
-  - macro: shell_procs
-    condition: proc.name in (shell_binaries)
-  - macro: never_true
-    condition: (evt.num=0)
-  - macro: container_entrypoint
-    condition: (not proc.pname exists or proc.pname in (runc:[0:PARENT], runc:[1:CHILD], runc, docker-runc, exe, docker-runc-cur))
-  - macro: user_expected_terminal_shell_in_container_conditions
-    condition: (never_true)
-  - rule: Terminal shell in container
-    desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
-    condition: >
-      spawned_process and container
-      and shell_procs and proc.tty != 0
-      and container_entrypoint
-      and not user_expected_terminal_shell_in_container_conditions
-    exceptions:
-      - name: proc_name_image_suffix
-        fields: [proc.name, container.image.repository]
-        comps: [in, endswith]
-    output: >
-      A shell was spawned in a container with an attached terminal (user=%user.name user_loginuid=%user.loginuid %container.info
-      shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline terminal=%proc.tty container_id=%container.id image=%container.image.repository)
-    priority: NOTICE
-    tags: [container, shell, mitre_execution]
-  - macro: contains_private_credentials
-    condition: >
-      (ka.req.configmap.obj contains "aws_access_key_id" or
-      ka.req.configmap.obj contains "aws-access-key-id" or
-      ka.req.configmap.obj contains "aws_s3_access_key_id" or
-      ka.req.configmap.obj contains "aws-s3-access-key-id" or
-      ka.req.configmap.obj contains "password" or
-      ka.req.configmap.obj contains "passphrase")
-  - macro: kevt
-    condition: (jevt.value[/stage] in (k8s_audit_stages))
-  - macro: configmap
-    condition: ka.target.resource=configmaps
-  - macro: kmodify
-    condition: (ka.verb in (create,update,patch))
-  - rule: Create/Modify Configmap With Private Credentials
-    desc: >
-      Detect creating/modifying a configmap containing a private credential (aws key, password, etc.)
-    condition: kevt and configmap and kmodify and contains_private_credentials
-    exceptions:
-      - name: configmaps
-        fields: [ka.target.namespace, ka.req.configmap.name]
-    output: K8s configmap with private credential (user=%ka.user.name verb=%ka.verb configmap=%ka.req.configmap.name config=%ka.req.configmap.obj)
-    priority: WARNING
-    source: k8s_audit
-    tags: [k8s]
+  custom-rules.yaml: |-
+    - macro: spawned_process
+      condition: evt.type = execve and evt.dir=<
+    - macro: container
+      condition: (container.id != host)
+    - list: shell_binaries
+      items: [ash, bash, csh, ksh, sh, tcsh, zsh, dash]
+    - macro: shell_procs
+      condition: proc.name in (shell_binaries)
+    - macro: never_true
+      condition: (evt.num=0)
+    - macro: container_entrypoint
+      condition: (not proc.pname exists or proc.pname in (runc:[0:PARENT], runc:[1:CHILD], runc, docker-runc, exe, docker-runc-cur))
+    - macro: user_expected_terminal_shell_in_container_conditions
+      condition: (never_true)
+    - rule: Terminal shell in container
+      desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
+      condition: >
+        spawned_process and container
+        and shell_procs and proc.tty != 0
+        and container_entrypoint
+        and not user_expected_terminal_shell_in_container_conditions
+      exceptions:
+        - name: proc_name_image_suffix
+          fields: [proc.name, container.image.repository]
+          comps: [in, endswith]
+      output: >
+        A shell was spawned in a container with an attached terminal (user=%user.name user_loginuid=%user.loginuid %container.info
+        shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+      priority: WARNING
+      tags: [container, shell, mitre_execution]
